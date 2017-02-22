@@ -397,7 +397,7 @@
     // Map the event into a `{event: once}` object.
     const events = eventsApi(onceMap, {}, name, callback, _.bind(this.off, this));
 
-    if (typeof name === 'string' && context === null) {
+    if (typeof name === 'string' && !context) {
       // eslint-disable-next-line
       callback = void 0;
     }
@@ -587,7 +587,7 @@
     // Returns `true` if the attribute contains a value that is not null
     // or undefined.
     has (attr) {
-      return this.get(attr) !== null;
+      return Boolean(this.get(attr));
     },
 
     // Special-cased proxy to underscore's `_.matches` method.
@@ -599,7 +599,7 @@
     // the core primitive operation of a model, updating the data and notifying
     // anyone who needs to know about the change in state. The heart of the beast.
     set (key, val, options = {}) {
-      if (key === null) {
+      if (!key) {
         return this;
       }
 
@@ -713,7 +713,7 @@
     // Determine if the model has changed since the last `"change"` event.
     // If you specify an attribute name, determine if that attribute has changed.
     hasChanged (attr) {
-      if (attr === null) {
+      if (!attr) {
         return !_.isEmpty(this.changed);
       }
 
@@ -752,7 +752,7 @@
     // Get the previous value of an attribute, recorded at the time the last
     // `"change"` event was fired.
     previous (attr) {
-      if (attr === null || !this._previousAttributes) {
+      if (!attr || !this._previousAttributes) {
         return null;
       }
 
@@ -796,7 +796,7 @@
       // Handle both `"key", value` and `{key: value}` -style arguments.
       let attrs;
 
-      if (key === null || typeof key === 'object') {
+      if (!key || typeof key === 'object') {
         attrs = key;
         options = val;
       } else {
@@ -1083,7 +1083,7 @@
     // already exist in the collection, as necessary. Similar to **Model#set**,
     // the core operation for updating the data contained by the collection.
     set (models, options) {
-      if (models === null) {
+      if (!models) {
         return;
       }
 
@@ -1098,7 +1098,7 @@
 
       let at = options.at;
 
-      if (at !== null) {
+      if (at) {
         at = Number(at);
       }
       if (at > this.length) {
@@ -1119,7 +1119,7 @@
       const remove = options.remove;
 
       let sort = false;
-      const sortable = this.comparator && at === null && options.sort !== false;
+      const sortable = this.comparator && !at && options.sort !== false;
       const sortAttr = _.isString(this.comparator) ? this.comparator : null;
 
       // Turn bare objects into model references, and prevent invalid models
@@ -1193,7 +1193,7 @@
         if (sortable) {
           sort = true;
         }
-        splice(this.models, toAdd, at === null ? this.length : at);
+        splice(this.models, toAdd, at || this.length);
         this.length = this.models.length;
       }
 
@@ -1205,9 +1205,10 @@
       // Unless silenced, it's time to fire all appropriate add/sort/update events.
       if (!options.silent) {
         for (i = 0; i < toAdd.length; i++) {
-          if (at !== null) {
+          if (at) {
             options.index = at + i;
           }
+
           model = toAdd[i];
           model.trigger('add', model, this, options);
         }
@@ -1279,7 +1280,7 @@
     // Get a model from the set by id, cid, model object with id or cid
     // properties, or an attributes object that is transformed through modelId.
     get (obj) {
-      if (obj === null) {
+      if (!obj) {
         return void 0; // eslint-disable-line
       }
 
@@ -1290,7 +1291,7 @@
 
     // Returns `true` if the model is in the collection.
     has (obj) {
-      return this.get(obj) !== null;
+      return Boolean(this.get(obj));
     },
 
     // Get the model at the given index.
@@ -1488,7 +1489,7 @@
         delete this._byId[model.cid];
         const id = this.modelId(model.attributes);
 
-        if (id !== null) {
+        if (id) {
           delete this._byId[id];
         }
 
@@ -1515,7 +1516,7 @@
       this._byId[model.cid] = model;
       const id = this.modelId(model.attributes);
 
-      if (id !== null) {
+      if (id) {
         this._byId[id] = model;
       }
 
@@ -1527,7 +1528,7 @@
       delete this._byId[model.cid];
       const id = this.modelId(model.attributes);
 
-      if (id !== null) {
+      if (id) {
         delete this._byId[id];
       }
 
@@ -1555,10 +1556,10 @@
           const id = this.modelId(model.attributes);
 
           if (prevId !== id) {
-            if (prevId !== null) {
+            if (prevId) {
               delete this._byId[prevId];
             }
-            if (id !== null) {
+            if (id) {
               this._byId[id] = model;
             }
           }
@@ -1883,7 +1884,7 @@
     }
 
     // Ensure that we have the appropriate request data.
-    if (options.data === null && model && (method === 'create' || method === 'update' || method === 'patch')) {
+    if (!options.data && model && (method === 'create' || method === 'update' || method === 'patch')) {
       params.contentType = 'application/json';
       params.data = JSON.stringify(options.attrs || model.toJSON(options));
     }
@@ -2158,7 +2159,7 @@
 
     // Get the cross-browser normalized URL fragment from the path or hash.
     getFragment (fragment) {
-      if (fragment === null) {
+      if (!fragment) {
         if (this._usePushState || !this._wantsHashChange) {
           fragment = this.getPath();
         } else {
