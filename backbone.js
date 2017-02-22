@@ -143,7 +143,7 @@
     }
   };
   const addUnderscoreMethods = function (Class, methods, attribute) {
-    _.each(methods, (length, method) => {
+    _(methods).each((length, method) => {
       if (_[method]) {
         Class.prototype[method] = addMethod(length, method, attribute);
       }
@@ -159,7 +159,7 @@
   // succession.
   //
   //     var object = {};
-  //     _.extend(object, Backbone.Events);
+  //     Object.assign(object, Backbone.Events);
   //     object.on('expand', function(){ alert('expanded'); });
   //     object.trigger('expand');
   //
@@ -182,7 +182,7 @@
         opts.context = callback;
       }
 
-      for (names = _.keys(name); i < names.length; i++) {
+      for (names = Object.keys(name); i < names.length; i++) {
         events = eventsApi(iteratee, events, names[i], name[names[i]], opts);
       }
     } else if (name && eventSplitter.test(name)) {
@@ -278,7 +278,7 @@
 
     // Delete all events listeners and "drop" events.
     if (!name && !callback && !context) {
-      const ids = _.keys(listeners);
+      const ids = Object.keys(listeners);
 
       for (; i < ids.length; i++) {
         listening = listeners[ids[i]];
@@ -289,7 +289,7 @@
       return;
     }
 
-    const names = name ? [name] : _.keys(events);
+    const names = name ? [name] : Object.keys(events);
 
     for (; i < names.length; i++) {
       name = names[i];
@@ -357,7 +357,7 @@
       return this;
     }
 
-    const ids = obj ? [obj._listenId] : _.keys(listeningTo);
+    const ids = obj ? [obj._listenId] : Object.keys(listeningTo);
 
     for (let i = 0; i < ids.length; i++) {
       const listening = listeningTo[ids[i]];
@@ -506,7 +506,7 @@
 
   // Allow the `Backbone` object to serve as a global event bus, for folks who
   // want global "pubsub" in a convenient place.
-  _.extend(Backbone, Events);
+  Object.assign(Backbone, Events);
 
   // Backbone.Model
   // --------------
@@ -532,14 +532,14 @@
     }
     const defaults = _.result(this, 'defaults');
 
-    attrs = _.defaults(_.extend({}, defaults, attrs), defaults);
+    attrs = _.defaults(Object.assign({}, defaults, attrs), defaults);
     this.set(attrs, options);
     this.changed = {};
     this.initialize.apply(this, arguments);
   };
 
   // Attach all inheritable methods to the Model prototype.
-  _.extend(Model.prototype, Events, {
+  Object.assign(Model.prototype, Events, {
 
     // A hash of attributes whose current and previous value differ.
     changed: null,
@@ -694,7 +694,7 @@
     // if the attribute doesn't exist.
     unset (attr, options) {
       // eslint-disable-next-line
-      return this.set(attr, void 0, _.extend({}, options, { unset: true }));
+      return this.set(attr, void 0, Object.assign({}, options, { unset: true }));
     },
 
     // Clear all attributes on the model, firing `"change"`.
@@ -707,7 +707,7 @@
       }
       /* eslint-enable */
 
-      return this.set(attrs, _.extend({}, options, { unset: true }));
+      return this.set(attrs, Object.assign({}, options, { unset: true }));
     },
 
     // Determine if the model has changed since the last `"change"` event.
@@ -768,7 +768,7 @@
     // Fetch the model from the server, merging the response with the model's
     // local attributes. Any changed attributes will trigger a "change" event.
     fetch (options) {
-      options = _.extend({ parse: true }, options);
+      options = Object.assign({ parse: true }, options);
       const model = this;
       const success = options.success;
 
@@ -803,7 +803,7 @@
         (attrs = {})[key] = val;
       }
 
-      options = _.extend({ validate: true, parse: true }, options);
+      options = Object.assign({ validate: true, parse: true }, options);
       const wait = options.wait;
 
       // If we're not waiting and attributes exist, save acts as
@@ -829,7 +829,7 @@
         let serverAttrs = options.parse ? model.parse(resp, options) : resp;
 
         if (wait) {
-          serverAttrs = _.extend({}, attrs, serverAttrs);
+          serverAttrs = Object.assign({}, attrs, serverAttrs);
         }
         if (serverAttrs && !model.set(serverAttrs, options)) {
           return false;
@@ -843,7 +843,7 @@
 
       // Set temporary attributes if `{wait: true}` to properly find new ids.
       if (attrs && wait) {
-        this.attributes = _.extend({}, attributes, attrs);
+        this.attributes = Object.assign({}, attributes, attrs);
       }
 
       const method = this.isNew() ? 'create' : (options.patch ? 'patch' : 'update');
@@ -935,7 +935,7 @@
 
     // Check if the model is currently in a valid state.
     isValid (options) {
-      return this._validate({}, _.extend({}, options, { validate: true }));
+      return this._validate({}, Object.assign({}, options, { validate: true }));
     },
 
     // Run validation against the next complete set of model attributes,
@@ -944,13 +944,13 @@
       if (!options.validate || !this.validate) {
         return true;
       }
-      attrs = _.extend({}, this.attributes, attrs);
+      attrs = Object.assign({}, this.attributes, attrs);
       const error = this.validationError = this.validate(attrs, options) || null;
 
       if (!error) {
         return true;
       }
-      this.trigger('invalid', this, error, _.extend(options, { validationError: error }));
+      this.trigger('invalid', this, error, Object.assign(options, { validationError: error }));
 
       return false;
     }
@@ -959,8 +959,7 @@
 
   // Underscore methods that we want to implement on the Model, mapped to the
   // number of arguments they take.
-  const modelMethods = { keys: 1, values: 1, pairs: 1, invert: 1, pick: 0,
-    omit: 0, chain: 1, isEmpty: 1 };
+  const modelMethods = { keys: 1, values: 1, pairs: 1, invert: 1, pick: 0, omit: 0, chain: 1, isEmpty: 1 };
 
   // Mix in each Underscore method as a proxy to `Model#attributes`.
   addUnderscoreMethods(Model, modelMethods, 'attributes');
@@ -1001,7 +1000,7 @@
     this.initialize.apply(this, arguments);
 
     if (models) {
-      this.reset(models, _.extend({ silent: true }, options));
+      this.reset(models, Object.assign({ silent: true }, options));
     }
   };
 
@@ -1028,7 +1027,7 @@
   };
 
   // Define the Collection's inheritable methods.
-  _.extend(Collection.prototype, Events, {
+  Object.assign(Collection.prototype, Events, {
 
     // The default model for a collection is just a **Backbone.Model**.
     // This should be overridden in most cases.
@@ -1059,12 +1058,12 @@
     // Models or raw JavaScript objects to be converted to Models, or any
     // combination of the two.
     add (models, options) {
-      return this.set(models, _.extend({ merge: false }, options, addOptions));
+      return this.set(models, Object.assign({ merge: false }, options, addOptions));
     },
 
     // Remove a model, or a list of models from the set.
     remove (models, options) {
-      options = _.extend({}, options);
+      options = Object.assign({}, options);
       const singular = !_.isArray(models);
 
       models = singular ? [models] : models.slice();
@@ -1087,7 +1086,7 @@
         return;
       }
 
-      options = _.extend({}, setOptions, options);
+      options = Object.assign({}, setOptions, options);
       if (options.parse && !this._isModel(models)) {
         models = this.parse(models, options) || [];
       }
@@ -1240,7 +1239,7 @@
       }
       options.previousModels = this.models;
       this._reset();
-      models = this.add(models, _.extend({ silent: true }, options));
+      models = this.add(models, Object.assign({ silent: true }, options));
       if (!options.silent) {
         this.trigger('reset', this, options);
       }
@@ -1250,7 +1249,7 @@
 
     // Add a model to the end of the collection.
     push (model, options) {
-      return this.add(model, _.extend({ at: this.length }, options));
+      return this.add(model, Object.assign({ at: this.length }, options));
     },
 
     // Remove a model from the end of the collection.
@@ -1262,7 +1261,7 @@
 
     // Add a model to the beginning of the collection.
     unshift (model, options) {
-      return this.add(model, _.extend({ at: 0 }, options));
+      return this.add(model, Object.assign({ at: 0 }, options));
     },
 
     // Remove a model from the beginning of the collection.
@@ -1353,7 +1352,7 @@
     // collection when they arrive. If `reset: true` is passed, the response
     // data will be passed through the `reset` method instead of `set`.
     fetch (options) {
-      options = _.extend({ parse: true }, options);
+      options = Object.assign({ parse: true }, options);
       const success = options.success;
       const collection = this;
 
@@ -1667,7 +1666,7 @@
   const View = Backbone.View = function (options) {
     this.cid = _.uniqueId('view');
     this.preinitialize.apply(this, arguments);
-    _.extend(this, _.pick(options, viewOptions));
+    Object.assign(this, _.pick(options, viewOptions));
     this._ensureElement();
     this.initialize.apply(this, arguments);
   };
@@ -1676,7 +1675,7 @@
   const delegateEventSplitter = /^(\S+)\s*(.*)$/;
 
   // Set up all inheritable **Backbone.View** properties and methods.
-  _.extend(View.prototype, Events, {
+  Object.assign(View.prototype, Events, {
 
     // The default `tagName` of a View's element is `"div"`.
     tagName: 'div',
@@ -1816,7 +1815,7 @@
     // an element from the `id`, `className` and `tagName` properties.
     _ensureElement () {
       if (!this.el) {
-        const attrs = _.extend({}, _.result(this, 'attributes'));
+        const attrs = Object.assign({}, _.result(this, 'attributes'));
 
         if (this.id) {
           attrs.id = _.result(this, 'id');
@@ -1929,7 +1928,7 @@
     };
 
     // Make the request, allowing the user to override any Ajax options.
-    const xhr = options.xhr = Backbone.ajax(_.extend(params, options));
+    const xhr = options.xhr = Backbone.ajax(Object.assign(params, options));
 
     model.trigger('request', model, xhr, options);
 
@@ -1966,7 +1965,7 @@
   const escapeRegExp = /[-{}[\]+?.,\\^$|#\s]/g;
 
   // Set up all inheritable **Backbone.Router** properties and methods.
-  _.extend(Router.prototype, Events, {
+  Object.assign(Router.prototype, Events, {
 
     // preinitialize is an empty function by default. You can override it with a function
     // or object.  preinitialize will run before any instantiation logic is run in the Router.
@@ -2034,7 +2033,7 @@
       this.routes = _.result(this, 'routes');
 
       let route;
-      const routes = _.keys(this.routes);
+      const routes = Object.keys(this.routes);
 
       while ((route = routes.pop()) !== null) {
         this.route(route, this.routes[route]);
@@ -2060,7 +2059,7 @@
     _extractParameters (route, fragment) {
       const params = route.exec(fragment).slice(1);
 
-      return _.map(params, (param, i) => {
+      return params.map((param, i) => {
         // Don't decode the search params.
         if (i === params.length - 1) {
           return param || null;
@@ -2104,7 +2103,7 @@
   History.started = false;
 
   // Set up all inheritable **Backbone.History** properties and methods.
-  _.extend(History.prototype, Events, {
+  Object.assign(History.prototype, Events, {
 
     // The default interval to poll for hash changes, if necessary, is
     // twenty times a second.
@@ -2180,7 +2179,7 @@
 
       // Figure out the initial configuration. Do we need an iframe?
       // Is pushState desired ... is it available?
-      this.options = _.extend({ root: '/' }, this.options, options);
+      this.options = Object.assign({ root: '/' }, this.options, options);
       this.root = this.options.root;
       this._wantsHashChange = this.options.hashChange !== false;
       // eslint-disable-next-line
@@ -2314,12 +2313,12 @@
       }
       fragment = this.fragment = this.getFragment(fragment);
 
-      return _.some(this.handlers, handler => {
+      return this.handlers.some(handler => {
         if (handler.route.test(fragment)) {
           handler.callback(fragment);
-
-          return true;
         }
+
+        return handler.route.test(fragment);
       });
     },
 
@@ -2432,7 +2431,7 @@
     }
 
     // Add static properties to the constructor function, if supplied.
-    _.extend(child, parent, staticProps);
+    Object.assign(child, parent, staticProps);
 
     // Set the prototype chain to inherit from `parent`, without calling
     // `parent`'s constructor function and add the prototype properties.
