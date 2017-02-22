@@ -21,8 +21,8 @@
 
   // Next for Node.js or CommonJS. jQuery may not be needed as a module.
   } else if (typeof exports !== 'undefined') {
-    let _ = require('underscore')
-, $;
+    const _ = require('underscore');
+    let $;
 
     try {
       $ = require('jquery');
@@ -70,6 +70,31 @@
   // form param named `model`.
   Backbone.emulateJSON = false;
 
+  const modelMatcher = function (attrs) {
+    const matcher = _.matches(attrs);
+
+    return function (model) {
+      return matcher(model.attributes);
+    };
+  };
+
+  // Support `collection.sortBy('attr')` and `collection.findWhere({id: 1})`.
+  const cb = function (iteratee, instance) {
+    if (_.isFunction(iteratee)) {
+      return iteratee;
+    }
+    if (_.isObject(iteratee) && !instance._isModel(iteratee)) {
+      return modelMatcher(iteratee);
+    }
+    if (_.isString(iteratee)) {
+      return function (model) {
+        return model.get(iteratee);
+      };
+    }
+
+    return iteratee;
+  };
+
   // Proxy Backbone class methods to Underscore functions, wrapping the model's
   // `attributes` object or collection's `models` array behind the scenes.
   //
@@ -108,30 +133,6 @@
     });
   };
 
-  // Support `collection.sortBy('attr')` and `collection.findWhere({id: 1})`.
-  var cb = function (iteratee, instance) {
-    if (_.isFunction(iteratee)) {
-      return iteratee;
-    }
-    if (_.isObject(iteratee) && !instance._isModel(iteratee)) {
-      return modelMatcher(iteratee);
-    }
-    if (_.isString(iteratee)) {
-      return function (model) {
-        return model.get(iteratee);
-      };
-    }
-
-    return iteratee;
-  };
-  var modelMatcher = function (attrs) {
-    const matcher = _.matches(attrs);
-
-    return function (model) {
-      return matcher(model.attributes);
-    };
-  };
-
   // Backbone.Events
   // ---------------
 
@@ -153,15 +154,17 @@
   // Iterates over the standard `event, callback` (as well as the fancy multiple
   // space-separated events `"change blur", callback` and jQuery-style event
   // maps `{event: callback}`).
-  var eventsApi = function (iteratee, events, name, callback, opts) {
-    let i = 0
-, names;
+  const eventsApi = function (iteratee, events, name, callback, opts) {
+    let i = 0;
+    let names;
 
     if (name && typeof name === 'object') {
       // Handle event maps.
+      // eslint-disable-next-line
       if (callback !== void 0 && 'context' in opts && opts.context === void 0) {
         opts.context = callback;
       }
+
       for (names = _.keys(name); i < names.length; i++) {
         events = eventsApi(iteratee, events, names[i], name[names[i]], opts);
       }
@@ -178,14 +181,26 @@
     return events;
   };
 
-  // Bind an event to a `callback` function. Passing `"all"` will bind
-  // the callback to all events fired.
-  Events.on = function (name, callback, context) {
-    return internalOn(this, name, callback, context);
+  // The reducing API that adds a callback to the `events` object.
+  const onApi = function (events, name, callback, options) {
+    if (callback) {
+      const handlers = events[name] || (events[name] = []);
+      const context = options.context;
+      const ctx = options.ctx;
+      const listening = options.listening;
+
+      if (listening) {
+        listening.count++;
+      }
+
+      handlers.push({ callback, context, ctx: context || ctx, listening });
+    }
+
+    return events;
   };
 
   // Guard the `listening` argument from the public API.
-  var internalOn = function (obj, name, callback, context, listening) {
+  const internalOn = function (obj, name, callback, context, listening) {
     obj._events = eventsApi(onApi, obj._events || {}, name, callback, {
       context,
       ctx: obj,
@@ -199,6 +214,12 @@
     }
 
     return obj;
+  };
+
+  // Bind an event to a `callback` function. Passing `"all"` will bind
+  // the callback to all events fired.
+  Events.on = function (name, callback, context) {
+    return internalOn(this, name, callback, context);
   };
 
   // Inversion-of-control versions of `on`. Tell *this* object to listen to
@@ -226,76 +247,17 @@
     return this;
   };
 
-  // The reducing API that adds a callback to the `events` object.
-  var onApi = function (events, name, callback, options) {
-    if (callback) {
-      const handlers = events[name] || (events[name] = []);
-      let context = options.context
-, ctx = options.ctx
-, listening = options.listening;
-
-      if (listening) {
-        listening.count++;
-      }
-
-      handlers.push({ callback, context, ctx: context || ctx, listening });
-    }
-
-    return events;
-  };
-
-  // Remove one or many callbacks. If `context` is null, removes all
-  // callbacks with that function. If `callback` is null, removes all
-  // callbacks for the event. If `name` is null, removes all bound
-  // callbacks for all events.
-  Events.off = function (name, callback, context) {
-    if (!this._events) {
-      return this;
-    }
-    this._events = eventsApi(offApi, this._events, name, callback, {
-      context,
-      listeners: this._listeners
-    });
-
-    return this;
-  };
-
-  // Tell this object to stop listening to either specific events ... or
-  // to every object it's currently listening to.
-  Events.stopListening = function (obj, name, callback) {
-    const listeningTo = this._listeningTo;
-
-    if (!listeningTo) {
-      return this;
-    }
-
-    const ids = obj ? [obj._listenId] : _.keys(listeningTo);
-
-    for (let i = 0; i < ids.length; i++) {
-      const listening = listeningTo[ids[i]];
-
-      // If listening doesn't exist, this object is not currently
-      // listening to obj. Break out early.
-      if (!listening) {
-        break;
-      }
-
-      listening.obj.off(name, callback, this);
-    }
-
-    return this;
-  };
-
   // The reducing API that removes a callback from the `events` object.
-  var offApi = function (events, name, callback, options) {
+  const offApi = function (events, name, callback, options) {
     if (!events) {
       return;
     }
 
-    let i = 0
-, listening;
-    let context = options.context
-, listeners = options.listeners;
+    const context = options.context;
+    const listeners = options.listeners;
+
+    let i = 0;
+    let listening;
 
     // Delete all events listeners and "drop" events.
     if (!name && !callback && !context) {
@@ -353,6 +315,63 @@
     return events;
   };
 
+  // Remove one or many callbacks. If `context` is null, removes all
+  // callbacks with that function. If `callback` is null, removes all
+  // callbacks for the event. If `name` is null, removes all bound
+  // callbacks for all events.
+  Events.off = function (name, callback, context) {
+    if (!this._events) {
+      return this;
+    }
+    this._events = eventsApi(offApi, this._events, name, callback, {
+      context,
+      listeners: this._listeners
+    });
+
+    return this;
+  };
+
+  // Tell this object to stop listening to either specific events ... or
+  // to every object it's currently listening to.
+  Events.stopListening = function (obj, name, callback) {
+    const listeningTo = this._listeningTo;
+
+    if (!listeningTo) {
+      return this;
+    }
+
+    const ids = obj ? [obj._listenId] : _.keys(listeningTo);
+
+    for (let i = 0; i < ids.length; i++) {
+      const listening = listeningTo[ids[i]];
+
+      // If listening doesn't exist, this object is not currently
+      // listening to obj. Break out early.
+      if (!listening) {
+        break;
+      }
+
+      listening.obj.off(name, callback, this);
+    }
+
+    return this;
+  };
+
+  // Reduces the event callbacks into a map of `{event: onceWrapper}`.
+  // `offer` unbinds the `onceWrapper` after it has been called.
+  const onceMap = function (map, name, callback, offer) {
+    if (callback) {
+      const once = map[name] = _.once(function () {
+        offer(name, once);
+        callback.apply(this, arguments);
+      });
+
+      once._callback = callback;
+    }
+
+    return map;
+  };
+
   // Bind an event to only be triggered a single time. After the first time
   // the callback is invoked, its listener will be removed. If multiple events
   // are passed in using the space-separated syntax, the handler will fire
@@ -361,7 +380,8 @@
     // Map the event into a `{event: once}` object.
     const events = eventsApi(onceMap, {}, name, callback, _.bind(this.off, this));
 
-    if (typeof name === 'string' && context == null) {
+    if (typeof name === 'string' && context === null) {
+      // eslint-disable-next-line
       callback = void 0;
     }
 
@@ -376,44 +396,53 @@
     return this.listenTo(obj, events);
   };
 
-  // Reduces the event callbacks into a map of `{event: onceWrapper}`.
-  // `offer` unbinds the `onceWrapper` after it has been called.
-  var onceMap = function (map, name, callback, offer) {
-    if (callback) {
-      var once = map[name] = _.once(function () {
-        offer(name, once);
-        callback.apply(this, arguments);
-      });
+  // A difficult-to-believe, but optimized internal dispatch function for
+  // triggering events. Tries to keep the usual cases speedy (most internal
+  // Backbone events have 3 arguments).
+  const triggerEvents = function (events, args) {
+    let ev;
+    let i = -1;
+    const l = events.length;
+    const a1 = args[0];
+    const a2 = args[1];
+    const a3 = args[2];
 
-      once._callback = callback;
+    switch (args.length) {
+    case 0:
+      while (++i < l) {
+        (ev = events[i]).callback.call(ev.ctx);
+      }
+
+      return;
+    case 1:
+      while (++i < l) {
+        (ev = events[i]).callback.call(ev.ctx, a1);
+      }
+
+      return;
+    case 2:
+      while (++i < l) {
+        (ev = events[i]).callback.call(ev.ctx, a1, a2);
+      }
+
+      return;
+    case 3:
+      while (++i < l) {
+        (ev = events[i]).callback.call(ev.ctx, a1, a2, a3);
+      }
+
+      return;
+    default:
+      while (++i < l) {
+        (ev = events[i]).callback.apply(ev.ctx, args);
+      }
+
+      return;
     }
-
-    return map;
-  };
-
-  // Trigger one or many events, firing all bound callbacks. Callbacks are
-  // passed the same arguments as `trigger` is, apart from the event name
-  // (unless you're listening on `"all"`, which will cause your callback to
-  // receive the true name of the event as the first argument).
-  Events.trigger = function (name) {
-    if (!this._events) {
-      return this;
-    }
-
-    const length = Math.max(0, arguments.length - 1);
-    const args = Array(length);
-
-    for (let i = 0; i < length; i++) {
-      args[i] = arguments[i + 1];
-    }
-
-    eventsApi(triggerApi, this._events, name, void 0, args);
-
-    return this;
   };
 
   // Handles triggering the appropriate event callbacks.
-  var triggerApi = function (objEvents, name, callback, args) {
+  const triggerApi = function (objEvents, name, callback, args) {
     if (objEvents) {
       const events = objEvents[name];
       let allEvents = objEvents.all;
@@ -432,44 +461,26 @@
     return objEvents;
   };
 
-  // A difficult-to-believe, but optimized internal dispatch function for
-  // triggering events. Tries to keep the usual cases speedy (most internal
-  // Backbone events have 3 arguments).
-  var triggerEvents = function (events, args) {
-    let ev
-, i = -1
-, l = events.length
-, a1 = args[0]
-, a2 = args[1]
-, a3 = args[2];
-
-    switch (args.length) {
-    case 0: while (++i < l) {
-      (ev = events[i]).callback.call(ev.ctx);
+  // Trigger one or many events, firing all bound callbacks. Callbacks are
+  // passed the same arguments as `trigger` is, apart from the event name
+  // (unless you're listening on `"all"`, which will cause your callback to
+  // receive the true name of the event as the first argument).
+  Events.trigger = function (name) {
+    if (!this._events) {
+      return this;
     }
 
-      return;
-    case 1: while (++i < l) {
-      (ev = events[i]).callback.call(ev.ctx, a1);
+    const length = Math.max(0, arguments.length - 1);
+    const args = Array(length);
+
+    for (let i = 0; i < length; i++) {
+      args[i] = arguments[i + 1];
     }
 
-      return;
-    case 2: while (++i < l) {
-      (ev = events[i]).callback.call(ev.ctx, a1, a2);
-    }
+    // eslint-disable-next-line
+    eventsApi(triggerApi, this._events, name, void 0, args);
 
-      return;
-    case 3: while (++i < l) {
-      (ev = events[i]).callback.call(ev.ctx, a1, a2, a3);
-    }
-
-      return;
-    default: while (++i < l) {
-      (ev = events[i]).callback.apply(ev.ctx, args);
-    }
-
-      return;
-    }
+    return this;
   };
 
   // Aliases for backwards compatibility.
@@ -490,10 +501,9 @@
 
   // Create a new model with the specified attributes. A client id (`cid`)
   // is automatically generated and assigned for you.
-  const Model = Backbone.Model = function (attributes, options) {
+  const Model = Backbone.Model = function (attributes, options = {}) {
     let attrs = attributes || {};
 
-    options || (options = {});
     this.preinitialize.apply(this, arguments);
     this.cid = _.uniqueId(this.cidPrefix);
     this.attributes = {};
@@ -537,7 +547,7 @@
     initialize () {},
 
     // Return a copy of the model's `attributes` object.
-    toJSON (options) {
+    toJSON () {
       return _.clone(this.attributes);
     },
 
@@ -560,7 +570,7 @@
     // Returns `true` if the attribute contains a value that is not null
     // or undefined.
     has (attr) {
-      return this.get(attr) != null;
+      return this.get(attr) !== null;
     },
 
     // Special-cased proxy to underscore's `_.matches` method.
@@ -571,8 +581,8 @@
     // Set a hash of model attributes on the object, firing `"change"`. This is
     // the core primitive operation of a model, updating the data and notifying
     // anyone who needs to know about the change in state. The heart of the beast.
-    set (key, val, options) {
-      if (key == null) {
+    set (key, val, options = {}) {
+      if (key === null) {
         return this;
       }
 
@@ -585,8 +595,6 @@
       } else {
         (attrs = {})[key] = val;
       }
-
-      options || (options = {});
 
       // Run validation.
       if (!this._validate(attrs, options)) {
@@ -611,17 +619,25 @@
       const prev = this._previousAttributes;
 
       // For each `set` attribute, update or delete the current value.
+      // eslint-disable-next-line
       for (const attr in attrs) {
         val = attrs[attr];
+
         if (!_.isEqual(current[attr], val)) {
           changes.push(attr);
         }
+
         if (!_.isEqual(prev[attr], val)) {
           changed[attr] = val;
         } else {
           delete changed[attr];
         }
-        unset ? delete current[attr] : current[attr] = val;
+
+        if (unset) {
+          delete current[attr];
+        } else {
+          current[attr] = val;
+        }
       }
 
       // Update the `id`.
@@ -660,6 +676,7 @@
     // Remove an attribute from the model, firing `"change"`. `unset` is a noop
     // if the attribute doesn't exist.
     unset (attr, options) {
+      // eslint-disable-next-line
       return this.set(attr, void 0, _.extend({}, options, { unset: true }));
     },
 
@@ -667,9 +684,11 @@
     clear (options) {
       const attrs = {};
 
+      /* eslint-disable */
       for (const key in this.attributes) {
         attrs[key] = void 0;
       }
+      /* eslint-enable */
 
       return this.set(attrs, _.extend({}, options, { unset: true }));
     },
@@ -677,7 +696,7 @@
     // Determine if the model has changed since the last `"change"` event.
     // If you specify an attribute name, determine if that attribute has changed.
     hasChanged (attr) {
-      if (attr == null) {
+      if (attr === null) {
         return !_.isEmpty(this.changed);
       }
 
