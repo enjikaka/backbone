@@ -70,6 +70,23 @@
   // form param named `model`.
   Backbone.emulateJSON = false;
 
+  // Wrap an optional error callback with a fallback error event.
+  const wrapError = function (model, options) {
+    const error = options.error;
+
+    options.error = function (resp) {
+      if (error) {
+        error.call(options.context, model, resp, options);
+      }
+      model.trigger('error', model, resp, options);
+    };
+  };
+
+  // Throw an error when a URL is needed, and none is supplied.
+  const urlError = function () {
+    throw new Error('A "url" property or function must be specified');
+  };
+
   const modelMatcher = function (attrs) {
     const matcher = _.matches(attrs);
 
@@ -717,12 +734,14 @@
       const changed = {};
       let hasChanged;
 
+      // eslint-disable-next-line
       for (const attr in diff) {
         const val = diff[attr];
 
         if (_.isEqual(old[attr], val)) {
           continue;
         }
+
         changed[attr] = val;
         hasChanged = true;
       }
@@ -733,7 +752,7 @@
     // Get the previous value of an attribute, recorded at the time the last
     // `"change"` event was fired.
     previous (attr) {
-      if (attr == null || !this._previousAttributes) {
+      if (attr === null || !this._previousAttributes) {
         return null;
       }
 
@@ -764,6 +783,7 @@
         }
         model.trigger('sync', model, resp, options);
       };
+
       wrapError(this, options);
 
       return this.sync('read', this, options);
@@ -776,7 +796,7 @@
       // Handle both `"key", value` and `{key: value}` -style arguments.
       let attrs;
 
-      if (key == null || typeof key === 'object') {
+      if (key === null || typeof key === 'object') {
         attrs = key;
         options = val;
       } else {
@@ -894,12 +914,12 @@
       }
       const id = this.get(this.idAttribute);
 
-      return base.replace(/[^\/]$/, '$&/') + encodeURIComponent(id);
+      return base.replace(/[^/]$/, '$&/') + encodeURIComponent(id);
     },
 
     // **parse** converts a response into the hash of attributes to be `set` on
     // the model. The default implementation is just to pass the response along.
-    parse (resp, options) {
+    parse (resp) {
       return resp;
     },
 
@@ -945,6 +965,13 @@
   // Mix in each Underscore method as a proxy to `Model#attributes`.
   addUnderscoreMethods(Model, modelMethods, 'attributes');
 
+  // This "enum" defines the three possible kinds of values which can be emitted
+  // by a CollectionIterator that correspond to the values(), keys() and entries()
+  // methods on Collection, respectively.
+  const ITERATOR_VALUES = 1;
+  const ITERATOR_KEYS = 2;
+  const ITERATOR_KEYSVALUES = 3;
+
   // Backbone.Collection
   // -------------------
 
@@ -958,17 +985,21 @@
   // Create a new **Collection**, perhaps to contain a specific type of `model`.
   // If a `comparator` is specified, the Collection will maintain
   // its models in sort order, as they're added and removed.
-  const Collection = Backbone.Collection = function (models, options) {
-    options || (options = {});
+  const Collection = Backbone.Collection = function (models, options = {}) {
     this.preinitialize.apply(this, arguments);
+
     if (options.model) {
       this.model = options.model;
     }
+
+    // eslint-disable-next-line
     if (options.comparator !== void 0) {
       this.comparator = options.comparator;
     }
+
     this._reset();
     this.initialize.apply(this, arguments);
+
     if (models) {
       this.reset(models, _.extend({ silent: true }, options));
     }
@@ -1052,7 +1083,7 @@
     // already exist in the collection, as necessary. Similar to **Model#set**,
     // the core operation for updating the data contained by the collection.
     set (models, options) {
-      if (models == null) {
+      if (models === null) {
         return;
       }
 
@@ -1067,7 +1098,7 @@
 
       let at = options.at;
 
-      if (at != null) {
+      if (at !== null) {
         at = Number(at);
       }
       if (at > this.length) {
@@ -1088,12 +1119,13 @@
       const remove = options.remove;
 
       let sort = false;
-      const sortable = this.comparator && at == null && options.sort !== false;
+      const sortable = this.comparator && at === null && options.sort !== false;
       const sortAttr = _.isString(this.comparator) ? this.comparator : null;
 
       // Turn bare objects into model references, and prevent invalid models
       // from being added.
-      let model, i;
+      let model;
+      let i;
 
       for (i = 0; i < models.length; i++) {
         model = models[i];
@@ -1161,7 +1193,7 @@
         if (sortable) {
           sort = true;
         }
-        splice(this.models, toAdd, at == null ? this.length : at);
+        splice(this.models, toAdd, at === null ? this.length : at);
         this.length = this.models.length;
       }
 
@@ -1173,7 +1205,7 @@
       // Unless silenced, it's time to fire all appropriate add/sort/update events.
       if (!options.silent) {
         for (i = 0; i < toAdd.length; i++) {
-          if (at != null) {
+          if (at !== null) {
             options.index = at + i;
           }
           model = toAdd[i];
@@ -1247,8 +1279,8 @@
     // Get a model from the set by id, cid, model object with id or cid
     // properties, or an attributes object that is transformed through modelId.
     get (obj) {
-      if (obj == null) {
-        return void 0;
+      if (obj === null) {
+        return void 0; // eslint-disable-line
       }
 
       return this._byId[obj] ||
@@ -1258,7 +1290,7 @@
 
     // Returns `true` if the model is in the collection.
     has (obj) {
-      return this.get(obj) != null;
+      return this.get(obj) !== null;
     },
 
     // Get the model at the given index.
@@ -1285,13 +1317,12 @@
     // Force the collection to re-sort itself. You don't need to call this under
     // normal circumstances, as the set will maintain sort order as each item
     // is added.
-    sort (options) {
+    sort (options = {}) {
       let comparator = this.comparator;
 
       if (!comparator) {
         throw new Error('Cannot sort a set without a comparator');
       }
-      options || (options = {});
 
       const length = comparator.length;
 
@@ -1371,7 +1402,7 @@
 
     // **parse** converts a response into a list of models to be added to the
     // collection. The default implementation is just to pass it through.
-    parse (resp, options) {
+    parse (resp) {
       return resp;
     },
 
@@ -1390,16 +1421,19 @@
 
     // Get an iterator of all models in this collection.
     values () {
+      // eslint-disable-next-line
       return new CollectionIterator(this, ITERATOR_VALUES);
     },
 
     // Get an iterator of all model IDs in this collection.
     keys () {
+      // eslint-disable-next-line
       return new CollectionIterator(this, ITERATOR_KEYS);
     },
 
     // Get an iterator of all [ID, model] tuples in this collection.
     entries () {
+      // eslint-disable-next-line
       return new CollectionIterator(this, ITERATOR_KEYSVALUES);
     },
 
@@ -1454,7 +1488,7 @@
         delete this._byId[model.cid];
         const id = this.modelId(model.attributes);
 
-        if (id != null) {
+        if (id !== null) {
           delete this._byId[id];
         }
 
@@ -1477,27 +1511,30 @@
     },
 
     // Internal method to create a model's ties to a collection.
-    _addReference (model, options) {
+    _addReference (model) {
       this._byId[model.cid] = model;
       const id = this.modelId(model.attributes);
 
-      if (id != null) {
+      if (id !== null) {
         this._byId[id] = model;
       }
+
       model.on('all', this._onModelEvent, this);
     },
 
     // Internal method to sever a model's ties to a collection.
-    _removeReference (model, options) {
+    _removeReference (model) {
       delete this._byId[model.cid];
       const id = this.modelId(model.attributes);
 
-      if (id != null) {
+      if (id !== null) {
         delete this._byId[id];
       }
+
       if (this === model.collection) {
         delete model.collection;
       }
+
       model.off('all', this._onModelEvent, this);
     },
 
@@ -1518,10 +1555,10 @@
           const id = this.modelId(model.attributes);
 
           if (prevId !== id) {
-            if (prevId != null) {
+            if (prevId !== null) {
               delete this._byId[prevId];
             }
-            if (id != null) {
+            if (id !== null) {
               this._byId[id] = model;
             }
           }
@@ -1548,18 +1585,11 @@
   // use of `for of` loops in modern browsers and interoperation between
   // Backbone.Collection and other JavaScript functions and third-party libraries
   // which can operate on Iterables.
-  var CollectionIterator = function (collection, kind) {
+  const CollectionIterator = function (collection, kind) {
     this._collection = collection;
     this._kind = kind;
     this._index = 0;
   };
-
-  // This "enum" defines the three possible kinds of values which can be emitted
-  // by a CollectionIterator that correspond to the values(), keys() and entries()
-  // methods on Collection, respectively.
-  var ITERATOR_VALUES = 1;
-  var ITERATOR_KEYS = 2;
-  var ITERATOR_KEYSVALUES = 3;
 
   // All Iterators should themselves be Iterable.
   if ($$iterator) {
@@ -1596,10 +1626,10 @@
 
       // Once exhausted, remove the reference to the collection so future
       // calls to the next method always return done.
-      this._collection = void 0;
+      this._collection = void 0; // eslint-disable-line
     }
 
-    return { value: void 0, done: true };
+    return { value: void 0, done: true }; // eslint-disable-line
   };
 
   // Underscore methods that we want to implement on the Collection.
@@ -1628,6 +1658,9 @@
   // having to worry about render order ... and makes it easy for the view to
   // react to specific changes in the state of your models.
 
+  // List of view options to be set as properties.
+  const viewOptions = ['model', 'collection', 'el', 'id', 'attributes', 'className', 'tagName', 'events'];
+
   // Creating a Backbone.View creates its initial element outside of the DOM,
   // if an existing element is not provided...
   const View = Backbone.View = function (options) {
@@ -1640,9 +1673,6 @@
 
   // Cached regex to split keys for `delegate`.
   const delegateEventSplitter = /^(\S+)\s*(.*)$/;
-
-  // List of view options to be set as properties.
-  var viewOptions = ['model', 'collection', 'el', 'id', 'attributes', 'className', 'tagName', 'events'];
 
   // Set up all inheritable **Backbone.View** properties and methods.
   _.extend(View.prototype, Events, {
@@ -1720,12 +1750,14 @@
     // pairs. Callbacks will be bound to the view, with `this` set properly.
     // Uses event delegation for efficiency.
     // Omitting the selector binds the event to `this.el`.
-    delegateEvents (events) {
-      events || (events = _.result(this, 'events'));
+    delegateEvents (events = _.result(this, 'events')) {
       if (!events) {
         return this;
       }
+
       this.undelegateEvents();
+
+      // eslint-disable-next-line
       for (const key in events) {
         let method = events[key];
 
@@ -1809,6 +1841,15 @@
   // Backbone.sync
   // -------------
 
+  // Map from CRUD to HTTP for our default `Backbone.sync` implementation.
+  const methodMap = {
+    'create': 'POST',
+    'update': 'PUT',
+    'patch': 'PATCH',
+    'delete': 'DELETE',
+    'read': 'GET'
+  };
+
   // Override this function to change the manner in which Backbone persists
   // models to the server. You will be passed the type of request, and the
   // model in question. By default, makes a RESTful Ajax request
@@ -1842,7 +1883,7 @@
     }
 
     // Ensure that we have the appropriate request data.
-    if (options.data == null && model && (method === 'create' || method === 'update' || method === 'patch')) {
+    if (options.data === null && model && (method === 'create' || method === 'update' || method === 'patch')) {
       params.contentType = 'application/json';
       params.data = JSON.stringify(options.attrs || model.toJSON(options));
     }
@@ -1894,15 +1935,6 @@
     return xhr;
   };
 
-  // Map from CRUD to HTTP for our default `Backbone.sync` implementation.
-  var methodMap = {
-    'create': 'POST',
-    'update': 'PUT',
-    'patch': 'PATCH',
-    'delete': 'DELETE',
-    'read': 'GET'
-  };
-
   // Set the default implementation of `Backbone.ajax` to proxy through to `$`.
   // Override this if you'd like to use a different library.
   Backbone.ajax = function () {
@@ -1914,12 +1946,13 @@
 
   // Routers map faux-URLs to actions, and fire events when routes are
   // matched. Creating a new one sets its `routes` hash, if not set statically.
-  const Router = Backbone.Router = function (options) {
-    options || (options = {});
+  const Router = Backbone.Router = function (options = {}) {
     this.preinitialize.apply(this, arguments);
+
     if (options.routes) {
       this.routes = options.routes;
     }
+
     this._bindRoutes();
     this.initialize.apply(this, arguments);
   };
@@ -1929,7 +1962,7 @@
   const optionalParam = /\((.*?)\)/g;
   const namedParam = /(\(\?)?:\w+/g;
   const splatParam = /\*\w+/g;
-  const escapeRegExp = /[\-{}\[\]+?.,\\\^$|#\s]/g;
+  const escapeRegExp = /[-{}[\]+?.,\\^$|#\s]/g;
 
   // Set up all inheritable **Backbone.Router** properties and methods.
   _.extend(Router.prototype, Events, {
@@ -1976,7 +2009,7 @@
 
     // Execute a route handler with the provided parameters.  This is an
     // excellent place to do pre-route setup or post-route cleanup.
-    execute (callback, args, name) {
+    execute (callback, args) {
       if (callback) {
         callback.apply(this, args);
       }
@@ -1996,11 +2029,13 @@
       if (!this.routes) {
         return;
       }
-      this.routes = _.result(this, 'routes');
-      let route
-, routes = _.keys(this.routes);
 
-      while ((route = routes.pop()) != null) {
+      this.routes = _.result(this, 'routes');
+
+      let route;
+      const routes = _.keys(this.routes);
+
+      while ((route = routes.pop()) !== null) {
         this.route(route, this.routes[route]);
       }
     },
@@ -2056,7 +2091,7 @@
   };
 
   // Cached regex for stripping a leading hash/slash and trailing space.
-  const routeStripper = /^[#\/]|\s+$/g;
+  const routeStripper = /^[#/]|\s+$/g;
 
   // Cached regex for stripping leading and trailing slashes.
   const rootStripper = /^\/+|\/+$/g;
@@ -2076,7 +2111,7 @@
 
     // Are we at the app root?
     atRoot () {
-      const path = this.location.pathname.replace(/[^\/]$/, '$&/');
+      const path = this.location.pathname.replace(/[^/]$/, '$&/');
 
       return path === this.root && !this.getSearch();
     },
@@ -2123,7 +2158,7 @@
 
     // Get the cross-browser normalized URL fragment from the path or hash.
     getFragment (fragment) {
-      if (fragment == null) {
+      if (fragment === null) {
         if (this._usePushState || !this._wantsHashChange) {
           fragment = this.getPath();
         } else {
@@ -2147,6 +2182,7 @@
       this.options = _.extend({ root: '/' }, this.options, options);
       this.root = this.options.root;
       this._wantsHashChange = this.options.hashChange !== false;
+      // eslint-disable-next-line
       this._hasHashChange = 'onhashchange' in window && (document.documentMode === void 0 || document.documentMode > 7);
       this._useHashChange = this._wantsHashChange && this._hasHashChange;
       this._wantsPushState = Boolean(this.options.pushState);
@@ -2181,7 +2217,7 @@
       // `hashChange` but not `pushState`.
       if (!this._hasHashChange && this._wantsHashChange && !this._usePushState) {
         this.iframe = document.createElement('iframe');
-        this.iframe.src = 'javascript:0';
+        this.iframe.src = 'javascript:0'; // eslint-disable-line
         this.iframe.style.display = 'none';
         this.iframe.tabIndex = -1;
         const body = document.body;
@@ -2249,7 +2285,7 @@
 
     // Checks the current URL to see if it has changed, and if it has,
     // calls `loadUrl`, normalizing across the hidden iframe.
-    checkUrl (e) {
+    checkUrl () {
       let current = this.getFragment();
 
       // If the user pressed the back button, the iframe's hash will have
@@ -2411,23 +2447,6 @@
 
   // Set up inheritance for the model, collection, router, view and history.
   Model.extend = Collection.extend = Router.extend = View.extend = History.extend = extend;
-
-  // Throw an error when a URL is needed, and none is supplied.
-  var urlError = function () {
-    throw new Error('A "url" property or function must be specified');
-  };
-
-  // Wrap an optional error callback with a fallback error event.
-  var wrapError = function (model, options) {
-    const error = options.error;
-
-    options.error = function (resp) {
-      if (error) {
-        error.call(options.context, model, resp, options);
-      }
-      model.trigger('error', model, resp, options);
-    };
-  };
 
   return Backbone;
 });
